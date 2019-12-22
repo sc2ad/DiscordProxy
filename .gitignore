@@ -1,0 +1,7 @@
+
+.vs/
+bin/
+obj/
+[rR]elease
+[dD]ebug
+packages/

@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29411.108
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DiscordProxy", "DiscordProxy.csproj", "{1826C71D-C2E7-4AD0-95D6-1A0B9302821A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1826C71D-C2E7-4AD0-95D6-1A0B9302821A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1826C71D-C2E7-4AD0-95D6-1A0B9302821A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1826C71D-C2E7-4AD0-95D6-1A0B9302821A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1826C71D-C2E7-4AD0-95D6-1A0B9302821A}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {0CE03A25-0A81-4732-A1CE-F2CBD9A33346}
+	EndGlobalSection
+EndGlobal
