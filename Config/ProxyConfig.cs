@@ -71,10 +71,15 @@ namespace DiscordProxy.Config
             {
                 throw new InvalidOperationException("Cannot forward a message sent by the client!");            
             }
-            (ProxyEndpoint, SocketGuildChannel) match;
-            if (GetAllChannels(client).TryGetValue(message.Channel.Id, out match))
-                return await SendMessageToOthers(client, message, match);
-            return false;
+            foreach (var k in GetAllChannels(client).Keys)
+            {
+                if (k == message.Channel.Id)
+                    continue;
+                var outp = await SendMessageToOthers(client, message, GetAllChannels(client)[k]);
+                if (!outp)
+                    return false;
+            }
+            return true;
         }
         //public async Task<bool> OnEdit(DiscordSocketClient client, SocketMessage message)
         //{
@@ -91,10 +96,11 @@ namespace DiscordProxy.Config
             if (match.Item1.AllowExternalMentions.HasValue && match.Item1.AllowExternalMentions.Value)
             {
                 // Convert simple mentions (@username) to Discord mentions (<@userID>)
-                newContent = ProxyUtils.ConvertSimpleMentions(match.Item2.Guild, newContent);
+                //newContent = ProxyUtils.ConvertSimpleMentions(match.Item2.Guild, newContent);
             }
             // Convert mentions made in the server the message was sent to legible mentions
-            newContent = ProxyUtils.ConvertMentionsToLegible(((SocketGuildChannel)message.Channel).Guild, newContent);
+
+            //newContent = ProxyUtils.ConvertMentionsToLegible(((SocketGuildChannel)message.Channel).Guild, newContent);
             if (match.Item1.AnonymizeUsers.HasValue && !match.Item1.AnonymizeUsers.Value)
             {
                 newContent = "@" + message.Author.Username + ":\n" + newContent;

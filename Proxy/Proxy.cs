@@ -11,21 +11,41 @@ namespace DiscordProxy.Proxy
 {
     public sealed class Proxy : IDisposable
     {
-        private readonly DiscordSocketClient _client;
+        public event Func<Discord.LogMessage, Task> Log;
+        public event Func<Task> Ready;
+        public readonly DiscordSocketClient _client;
         private readonly ProxyConfig _config;
 
-        public Proxy(ProxyConfig config)
+        public Proxy(ProxyConfig config, DiscordSocketConfig socketConfig)
         {
             _config = config;
-            _client = new DiscordSocketClient();
-            _client.MessageReceived += _client_MessageReceived;
-            _client.Connected += _client_Connected;
+            _client = new DiscordSocketClient(socketConfig);
         }
 
-        private async Task _client_Connected()
+        public async Task Start()
         {
+            _client.MessageReceived += _client_MessageReceived;
+            _client.Log += _client_Log;
+            _client.Ready += _client_Ready;
             await _client.StartAsync();
             await _client.LoginAsync(Discord.TokenType.Bot, File.ReadAllText("discord.key"));
+        }
+
+        private async Task _client_Ready()
+        {
+            await Ready();
+        }
+
+        private async Task _client_Log(Discord.LogMessage arg)
+        {
+            await Log(arg);
+        }
+
+        public async Task Stop()
+        {
+            _client.MessageReceived -= _client_MessageReceived;
+            await _client.LogoutAsync();
+            Dispose();
         }
 
         private async Task _client_MessageReceived(SocketMessage message)

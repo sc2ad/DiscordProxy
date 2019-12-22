@@ -10,23 +10,23 @@ namespace DiscordProxy.Utils
 {
     public sealed class ProxyUtils
     {
-        public static string ConvertMentionsToLegible(SocketGuild guild, string originalMessage)
+        public static string ConvertMentionsToLegible(SocketGuild sourceGuild, string originalMessage)
         {
             int leftMention = originalMessage.IndexOf("<");
             if (leftMention == -1 || originalMessage.Length <= 2)
                 return originalMessage;
-            int rightMention = originalMessage.Substring(leftMention + 2).IndexOf(">");
+            int rightMention = originalMessage.Substring(leftMention + 2).IndexOf(">") + 2;
             while (leftMention + 2 <= rightMention)
             {
-                string toReplace = originalMessage.Substring(leftMention, rightMention - leftMention);
+                string toReplace = originalMessage.Substring(leftMention, rightMention - leftMention + 1);
                 ulong id;
                 // Get THING from ID here:
                 if (MentionUtils.TryParseChannel(toReplace, out id))
-                    originalMessage = originalMessage.Replace(toReplace, "#" + guild.GetChannel(id).Name);
+                    originalMessage = originalMessage.Replace(toReplace, "#" + sourceGuild.GetChannel(id).Name);
                 else if (MentionUtils.TryParseRole(toReplace, out id))
-                    originalMessage = originalMessage.Replace(toReplace, "@" + guild.GetRole(id).Name);
+                    originalMessage = originalMessage.Replace(toReplace, "@" + sourceGuild.GetRole(id).Name);
                 else if (MentionUtils.TryParseUser(toReplace, out id))
-                    originalMessage = originalMessage.Replace(toReplace, "@" + guild.GetUser(id).Username);
+                    originalMessage = originalMessage.Replace(toReplace, "@" + sourceGuild.GetUser(id).Username);
                 else
                     // Not parsable into anything known:
                     originalMessage.Replace(toReplace, "[[UNKNOWN MENTION]]");
@@ -37,6 +37,7 @@ namespace DiscordProxy.Utils
             }
             return originalMessage;
         }
+        // TODO: Fix this method
         public static string ConvertSimpleMentions(SocketGuild guild, string originalMessage)
         {
             int leftMention = originalMessage.IndexOf("@");
@@ -49,6 +50,7 @@ namespace DiscordProxy.Utils
                 string name = originalMessage.Substring(leftMention + 1, toReplace.Length - 2);
 
             }
+            return "";
         }
     }
 }
