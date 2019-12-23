@@ -1,5 +1,6 @@
 ﻿using Discord;
 using Discord.WebSocket;
+using DiscordProxy.Config;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,6 +11,35 @@ namespace DiscordProxy.Utils
 {
     public sealed class ProxyUtils
     {
+        public static string ProxyMessage(SocketMessage message, ProxyEndpoint endpoint)
+        {
+            string newContent = "";
+            
+            if (endpoint == null)
+            {
+                if (message.Channel is SocketGroupChannel)
+                {
+                    // Message is from Group
+                    newContent = $"Group DM From: {(message.Channel as SocketGroupChannel).Name}:\n{message.Content}";
+                }
+                else if (message.Channel is SocketDMChannel)
+                {
+                    // Message is from DM
+                    foreach (var u in (message.Channel as SocketDMChannel).Users)
+                    {
+                        // Assumes the other user is not a bot
+                        if (!u.IsBot)
+                            newContent = $"DM From {u.Username}:\n{message.Content}";
+                    }
+
+                }
+            }
+            else
+            {
+                newContent = endpoint.ConvertMessageContent(message);
+            }
+            return newContent;
+        }
         public static string ConvertMentionsToLegible(SocketGuild sourceGuild, string originalMessage)
         {
             int leftMention = originalMessage.IndexOf("<");

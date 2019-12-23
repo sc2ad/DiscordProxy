@@ -2,6 +2,7 @@
 using Discord.Rest;
 using Discord.WebSocket;
 using DiscordProxy.Utils;
+using DiscordProxyCore.Config;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -22,6 +23,45 @@ namespace DiscordProxy.Config
         public bool? AnonymizeUsers { get; set; }
         public bool? AllowExternalMentions { get; set; }
         public bool? ForwardReactions { get; set; }
+        public bool? ReceiveDMs { get; set; }
+        public bool? ReceiveGroupMessages { get; set; }
+        public string ConvertMessageContent(IMessage message)
+        {
+            string newContent = "";
+            // Only forward DMs to recipients that accept DMs
+            if (message.Channel is ISocketPrivateChannel)
+            {
+                if (message.Channel is SocketGroupChannel && ReceiveGroupMessages.HasValue && ReceiveGroupMessages.Value)
+                {
+                    // Message is from Group
+                    newContent = $"Group DM From: {(message.Channel as SocketGroupChannel).Name}:\n{message.Content}";
+                }
+                else if (message.Channel is SocketDMChannel && ReceiveDMs.HasValue && ReceiveDMs.Value)
+                {
+                    // Message is from DM
+                    foreach (var u in (message.Channel as SocketDMChannel).Users)
+                    {
+                        // Assumes the other user is not a bot
+                        if (!u.IsBot)
+                        {
+                            newContent = $"DM From {u.Username}:\n{message.Content}";
+                            break;
+                        }
+                    }
+                }
+                return newContent;
+            }
+            newContent = message.Content;
+            if (AllowExternalMentions.HasValue && AllowExternalMentions.Value)
+            {
+                // TODO: Add something here?
+            }
+            if (AnonymizeUsers.HasValue && !AnonymizeUsers.Value)
+            {
+                newContent = "@" + message.Author.Username + ":\n" + newContent;
+            }
+            return newContent;
+        }
     }
     public class ProxyIdentifier
     {
@@ -51,15 +91,33 @@ namespace DiscordProxy.Config
     {
         public ProxyEndpoint Source { get; set; }
         public List<ProxyEndpoint> Destinations { get; set; }
-        public Dictionary<ulong, (ProxyEndpoint, SocketGuildChannel)> AllChannels { get; private set; }
-        private Dictionary<ulong, RestUserMessage> Messages { get; } = new Dictionary<ulong, RestUserMessage>();
-        public Dictionary<ulong, (ProxyEndpoint, SocketGuildChannel)> GetAllChannels(DiscordSocketClient client) {
+        [JsonIgnore]
+        public Dictionary<ulong, (ProxyEndpoint, SocketTextChannel)> AllChannels { get; private set; }
+        [JsonIgnore]
+        private List<LinkedMessage> Messages { get; } = new List<LinkedMessage>();
+        [JsonIgnore]
+        private ulong _lastProxiedID;
+        private LinkedMessage _proxiedLinkedMessage;
+        public Dictionary<ulong, (ProxyEndpoint, SocketTextChannel)> GetAllChannels(DiscordSocketClient client) {
             if (AllChannels == null)
                 AllChannels = Destinations.FindAll(pe => pe.Identifier.Id.HasValue)
-                    .Select(pe => new KeyValuePair<ulong, (ProxyEndpoint, SocketGuildChannel)>(pe.Identifier.Id.Value, (pe, pe.Identifier.GetChannel(client))))
-                    .Append(new KeyValuePair<ulong, (ProxyEndpoint, SocketGuildChannel)>(Source.Identifier.Id.Value, (Source, Source.Identifier.GetChannel(client))))
+                    .Select(pe => new KeyValuePair<ulong, (ProxyEndpoint, SocketTextChannel)>(pe.Identifier.Id.Value, (pe, (SocketTextChannel)pe.Identifier.GetChannel(client))))
+                    .Append(new KeyValuePair<ulong, (ProxyEndpoint, SocketTextChannel)>(Source.Identifier.Id.Value, (Source, (SocketTextChannel)Source.Identifier.GetChannel(client))))
                     .ToDictionary(pair => pair.Key, pair => pair.Value);
             return AllChannels;
+        }
+        public async Task<bool> OnEditMessage(SocketMessage message)
+        {
+            foreach (var m in Messages)
+            {
+                if (message.Id == m.SourceID)
+                {
+                    var success = await m.OnMessageEdit(message);
+                    if (!success)
+                        return false;
+                }
+            }
+            return true;
         }
         /// <summary>
         /// Forwards a message that has been received from Source to each Destination
@@ -67,50 +125,41 @@ namespace DiscordProxy.Config
         /// <param name="message"></param>
         public async Task<bool> OnMessage(DiscordSocketClient client, SocketMessage message)
         {
-            if (message.Author.Id == client.CurrentUser.Id)
-            {
-                throw new InvalidOperationException("Cannot forward a message sent by the client!");            
+            if (message.Author.Id == client.CurrentUser.Id) {
+                if (_lastProxiedID != 0 && _proxiedLinkedMessage != null)
+                {
+                    // Assume that a message sent from this bot is only after a message has been sent from a user
+                    if (GetAllChannels(client).ContainsKey(message.Channel.Id))
+                    {
+                        _proxiedLinkedMessage.AddHeader(message, GetAllChannels(client)[message.Channel.Id].Item1);
+                    }
+                }
+                return true;
             }
             foreach (var k in GetAllChannels(client).Keys)
             {
                 if (k == message.Channel.Id)
                     continue;
-                var outp = await SendMessageToOthers(client, message, GetAllChannels(client)[k]);
-                if (!outp)
+                var success = await SendMessageToOthers(message, GetAllChannels(client)[k]);
+                if (!success)
                     return false;
             }
+            _lastProxiedID = message.Id;
+            _proxiedLinkedMessage = new LinkedMessage(_lastProxiedID);
+            Messages.Add(_proxiedLinkedMessage);
             return true;
         }
-        //public async Task<bool> OnEdit(DiscordSocketClient client, SocketMessage message)
-        //{
-        //    // If a message is edited, send the edit to all others.
-        //    if (message.Author.Id != client.CurrentUser.Id)
-        //    {
-
-        //    }
-        //}
-        public async Task<bool> SendMessageToOthers(DiscordSocketClient client, SocketMessage message, (ProxyEndpoint, SocketGuildChannel) match)
+        public async Task<bool> SendMessageToOthers(SocketMessage message, (ProxyEndpoint, SocketTextChannel) match)
         {
-            string newContent = message.Content;
-            // Next, we check config to alter the message if needed
-            if (match.Item1.AllowExternalMentions.HasValue && match.Item1.AllowExternalMentions.Value)
-            {
-                // Convert simple mentions (@username) to Discord mentions (<@userID>)
-                //newContent = ProxyUtils.ConvertSimpleMentions(match.Item2.Guild, newContent);
-            }
-            // Convert mentions made in the server the message was sent to legible mentions
-
-            //newContent = ProxyUtils.ConvertMentionsToLegible(((SocketGuildChannel)message.Channel).Guild, newContent);
-            if (match.Item1.AnonymizeUsers.HasValue && !match.Item1.AnonymizeUsers.Value)
-            {
-                newContent = "@" + message.Author.Username + ":\n" + newContent;
-            }
-            if (newContent.Length >= 500)
+            string newContent = ProxyUtils.ProxyMessage(message, match.Item1);
+            // Discord max length is 300 characters
+            if (newContent.Length >= 300)
             {
                 // TODO: Add handling for messages that are too long after getting converted
                 return false;
             }
-            var messageSent = await (match.Item2 as SocketTextChannel).SendMessageAsync(newContent);
+            if (!string.IsNullOrEmpty(newContent))
+                await match.Item2.SendMessageAsync(newContent);
             // TODO: Add messageSent to messages that are to be edited when the original message (or anything linked to it) is edited
             return true;
         }

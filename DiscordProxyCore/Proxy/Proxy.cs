@@ -27,8 +27,21 @@ namespace DiscordProxy.Proxy
             _client.MessageReceived += _client_MessageReceived;
             _client.Log += _client_Log;
             _client.Ready += _client_Ready;
+            _client.MessageUpdated += _client_MessageUpdated;
             await _client.StartAsync();
-            await _client.LoginAsync(Discord.TokenType.Bot, File.ReadAllText("discord.key"));
+            await _client.LoginAsync(Discord.TokenType.Bot, File.ReadAllText("discord.key").Trim());
+        }
+
+        private async Task _client_MessageUpdated(Discord.Cacheable<Discord.IMessage, ulong> arg1, SocketMessage message, ISocketMessageChannel channel)
+        {
+            foreach (var c in _config.Channels)
+            {
+                var x = await c.OnEditMessage(message);
+                if (!x)
+                {
+                    Console.WriteLine($"Failed to forward edit with config channel: {c} real channel: {channel.Name} message: {message.Content} with author: {message.Author}");
+                }
+            }
         }
 
         private async Task _client_Ready()
@@ -50,15 +63,12 @@ namespace DiscordProxy.Proxy
 
         private async Task _client_MessageReceived(SocketMessage message)
         {
-            if (message.Author.Id != _client.CurrentUser.Id)
+            foreach (var c in _config.Channels)
             {
-                foreach (var c in _config.Channels)
+                var x = await c.OnMessage(_client, message);
+                if (!x)
                 {
-                    var x = await c.OnMessage(_client, message);
-                    if (!x)
-                    {
-                        Console.WriteLine($"Failed to forward message with channel: {c} and message: {message.Content} with author: {message.Author}");
-                    }
+                    Console.WriteLine($"Failed to forward message with channel: {c} and message: {message.Content} with author: {message.Author}");
                 }
             }
         }
