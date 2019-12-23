@@ -10,8 +10,4 @@
     <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
   </ItemGroup>
 
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="xcopy &quot;$(ProjectDir)..\discord.key&quot; &quot;$(TargetDir)&quot; /Y&#xD;&#xA;xcopy &quot;$(ProjectDir)..\config.json&quot; &quot;$(TargetDir)&quot; /Y" />
-  </Target>
-
 </Project>
