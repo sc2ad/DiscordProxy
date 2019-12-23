@@ -20,7 +20,9 @@ namespace DiscordProxy
             var config = JsonConvert.DeserializeObject<ProxyConfig>(File.ReadAllText("config.json"));
             var socketConfig = new DiscordSocketConfig()
             {
+#if DEBUG
                 LogLevel = Discord.LogSeverity.Debug
+#endif
             };
             proxy = new Proxy.Proxy(config, socketConfig);
             proxy.Log += Proxy_Log;
