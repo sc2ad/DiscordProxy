@@ -55,7 +55,7 @@ namespace DiscordProxy.Utils
                 {
                     // If the channel is a normal guild channel, display the guild, category and channel names
                     SocketTextChannel channel => embed
-                        .WithTitle(channel.Name)
+                        .WithTitle($"#{channel.Name}")
                         .WithFooter(channel.Category != null
                             ? $"{channel.Guild.Name} ({channel.Category.Name})"
                             : channel.Guild.Name),
