@@ -14,13 +14,19 @@ namespace DiscordProxyCore.Config
         public SocketMessage Message { get; set; }
         public async Task<bool> ModifyMessage(SocketMessage newMessage)
         {
-            string newContent = ProxyUtils.ProxyMessage(newMessage, Endpoint);
-            if (newMessage is SocketUserMessage && !string.IsNullOrEmpty(newContent))
+            if (!(Message is SocketUserMessage message)) return false;
+
+            if (Endpoint.PrettyPrint)
             {
-                await (Message as SocketUserMessage).ModifyAsync(msg => msg.Content = newContent);
-                return true;
+                var newEmbed = ProxyUtils.PrettyProxyMessage(newMessage, Endpoint);
+                await message.ModifyAsync(msg => msg.Embed = newEmbed);
             }
-            return false;
+            else
+            {
+                string newContent = ProxyUtils.ProxyMessage(newMessage, Endpoint);
+                await message.ModifyAsync(msg => msg.Content = newContent);
+            }
+            return true;
         }
     }
 }

@@ -26,6 +26,10 @@ namespace DiscordProxy.Config
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Populate)]
         public bool AnonymizeUsers { get; set; }
 
+        [DefaultValue(true)]
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Populate)]
+        public bool AnonymizeChannels { get; set; }
+
         [DefaultValue(false)]
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Populate)]
         public bool AllowExternalMentions { get; set; }

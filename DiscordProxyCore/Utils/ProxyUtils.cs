@@ -49,12 +49,21 @@ namespace DiscordProxy.Utils
                 embed = embed.WithAuthor(message.Author);
             }
 
-            if (message.Channel is ISocketPrivateChannel)
+            if (!endpoint.AnonymizeChannels)
             {
                 embed = message.Channel switch
                 {
-                    SocketGroupChannel channel => embed.WithTitle(channel.Name),
-                    SocketDMChannel _ => embed.WithTitle("DM"),
+                    // If the channel is a normal guild channel, display the guild, category and channel names
+                    SocketTextChannel channel => embed
+                        .WithTitle(channel.Name)
+                        .WithFooter(channel.Category != null
+                            ? $"{channel.Guild.Name} ({channel.Category.Name})"
+                            : channel.Guild.Name),
+                    // If the channel is a DM channel, specify it
+                    SocketDMChannel _ => embed.WithFooter("DM"),
+                    // If the channel is a group DM channel, specify it and display the group DM name
+                    SocketGroupChannel channel => embed.WithFooter($"DM ({channel.Name})"),
+                    // If none of the above apply, nothing is displayed
                     _ => embed
                 };
             }
