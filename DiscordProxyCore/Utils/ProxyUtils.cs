@@ -40,6 +40,28 @@ namespace DiscordProxy.Utils
             }
             return newContent;
         }
+        public static Embed PrettyProxyMessage(SocketMessage message, ProxyEndpoint endpoint)
+        {
+            var embed = new EmbedBuilder {Description = message.Content};
+
+            if (!endpoint.AnonymizeUsers)
+            {
+                embed = embed.WithAuthor(message.Author);
+            }
+
+            if (message.Channel is ISocketPrivateChannel)
+            {
+                embed = message.Channel switch
+                {
+                    SocketGroupChannel channel => embed.WithTitle(channel.Name),
+                    SocketDMChannel _ => embed.WithTitle("DM"),
+                    _ => embed
+                };
+            }
+
+            return embed.WithCurrentTimestamp().Build();
+        }
+
         public static string ConvertMentionsToLegible(SocketGuild sourceGuild, string originalMessage)
         {
             int leftMention = originalMessage.IndexOf("<");

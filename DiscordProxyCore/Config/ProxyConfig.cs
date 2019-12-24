@@ -170,16 +170,26 @@ namespace DiscordProxy.Config
         }
         public async Task<bool> SendMessageToOthers(SocketMessage message, (ProxyEndpoint, SocketTextChannel) match)
         {
-            string newContent = ProxyUtils.ProxyMessage(message, match.Item1);
-            // Discord max length is 300 characters
-            if (newContent.Length >= 300)
+            if (match.Item1.PrettyPrint)
             {
-                // TODO: Add handling for messages that are too long after getting converted
-                return false;
+                var newEmbed = ProxyUtils.PrettyProxyMessage(message, match.Item1);
+                await match.Item2.SendMessageAsync(embed: newEmbed);
             }
-            if (!string.IsNullOrEmpty(newContent))
-                await match.Item2.SendMessageAsync(newContent);
-            // TODO: Add messageSent to messages that are to be edited when the original message (or anything linked to it) is edited
+            else
+            {
+                string newContent = ProxyUtils.ProxyMessage(message, match.Item1);
+                // Discord max length is 300 characters
+                if (newContent.Length >= 300)
+                {
+                    // TODO: Add handling for messages that are too long after getting converted
+                    return false;
+                }
+
+                if (!string.IsNullOrEmpty(newContent))
+                    await match.Item2.SendMessageAsync(newContent);
+                // TODO: Add messageSent to messages that are to be edited when the original message (or anything linked to it) is edited
+            }
+
             return true;
         }
     }
