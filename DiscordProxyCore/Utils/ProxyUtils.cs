@@ -40,6 +40,37 @@ namespace DiscordProxy.Utils
             }
             return newContent;
         }
+        public static Embed PrettyProxyMessage(SocketMessage message, ProxyEndpoint endpoint)
+        {
+            var embed = new EmbedBuilder {Description = message.Content};
+
+            if (!endpoint.AnonymizeUsers)
+            {
+                embed = embed.WithAuthor(message.Author);
+            }
+
+            if (!endpoint.AnonymizeChannels)
+            {
+                embed = message.Channel switch
+                {
+                    // If the channel is a normal guild channel, display the guild, category and channel names
+                    SocketTextChannel channel => embed
+                        .WithTitle($"#{channel.Name}")
+                        .WithFooter(channel.Category != null
+                            ? $"{channel.Guild.Name} ({channel.Category.Name})"
+                            : channel.Guild.Name),
+                    // If the channel is a DM channel, specify it
+                    SocketDMChannel _ => embed.WithFooter("DM"),
+                    // If the channel is a group DM channel, specify it and display the group DM name
+                    SocketGroupChannel channel => embed.WithFooter($"DM ({channel.Name})"),
+                    // If none of the above apply, nothing is displayed
+                    _ => embed
+                };
+            }
+
+            return embed.WithCurrentTimestamp().Build();
+        }
+
         public static string ConvertMentionsToLegible(SocketGuild sourceGuild, string originalMessage)
         {
             int leftMention = originalMessage.IndexOf("<");

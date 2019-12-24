@@ -6,6 +6,7 @@ using DiscordProxyCore.Config;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -20,23 +21,45 @@ namespace DiscordProxy.Config
     public class ProxyEndpoint
     {
         public ProxyIdentifier Identifier { get; set; }
-        public bool? AnonymizeUsers { get; set; }
-        public bool? AllowExternalMentions { get; set; }
+
+        [DefaultValue(true)]
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Populate)]
+        public bool AnonymizeUsers { get; set; }
+
+        [DefaultValue(true)]
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Populate)]
+        public bool AnonymizeChannels { get; set; }
+
+        [DefaultValue(false)]
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Populate)]
+        public bool AllowExternalMentions { get; set; }
+
         public bool? ForwardReactions { get; set; }
-        public bool? ReceiveDMs { get; set; }
-        public bool? ReceiveGroupMessages { get; set; }
+
+        [DefaultValue(false)]
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Populate)]
+        public bool ReceiveDMs { get; set; }
+
+        [DefaultValue(false)]
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Populate)]
+        public bool ReceiveGroupMessages { get; set; }
+
+        [DefaultValue(false)]
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Populate)]
+        public bool PrettyPrint { get; set; }
+
         public string ConvertMessageContent(IMessage message)
         {
             string newContent = "";
             // Only forward DMs to recipients that accept DMs
             if (message.Channel is ISocketPrivateChannel)
             {
-                if (message.Channel is SocketGroupChannel && ReceiveGroupMessages.HasValue && ReceiveGroupMessages.Value)
+                if (message.Channel is SocketGroupChannel && ReceiveGroupMessages)
                 {
                     // Message is from Group
                     newContent = $"Group DM From: {(message.Channel as SocketGroupChannel).Name}:\n{message.Content}";
                 }
-                else if (message.Channel is SocketDMChannel && ReceiveDMs.HasValue && ReceiveDMs.Value)
+                else if (message.Channel is SocketDMChannel && ReceiveDMs)
                 {
                     // Message is from DM
                     foreach (var u in (message.Channel as SocketDMChannel).Users)
@@ -52,11 +75,11 @@ namespace DiscordProxy.Config
                 return newContent;
             }
             newContent = message.Content;
-            if (AllowExternalMentions.HasValue && AllowExternalMentions.Value)
+            if (AllowExternalMentions)
             {
                 // TODO: Add something here?
             }
-            if (AnonymizeUsers.HasValue && !AnonymizeUsers.Value)
+            if (!AnonymizeUsers)
             {
                 newContent = "@" + message.Author.Username + ":\n" + newContent;
             }
@@ -151,16 +174,26 @@ namespace DiscordProxy.Config
         }
         public async Task<bool> SendMessageToOthers(SocketMessage message, (ProxyEndpoint, SocketTextChannel) match)
         {
-            string newContent = ProxyUtils.ProxyMessage(message, match.Item1);
-            // Discord max length is 300 characters
-            if (newContent.Length >= 300)
+            if (match.Item1.PrettyPrint)
             {
-                // TODO: Add handling for messages that are too long after getting converted
-                return false;
+                var newEmbed = ProxyUtils.PrettyProxyMessage(message, match.Item1);
+                await match.Item2.SendMessageAsync(embed: newEmbed);
             }
-            if (!string.IsNullOrEmpty(newContent))
-                await match.Item2.SendMessageAsync(newContent);
-            // TODO: Add messageSent to messages that are to be edited when the original message (or anything linked to it) is edited
+            else
+            {
+                string newContent = ProxyUtils.ProxyMessage(message, match.Item1);
+                // Discord max length is 300 characters
+                if (newContent.Length >= 300)
+                {
+                    // TODO: Add handling for messages that are too long after getting converted
+                    return false;
+                }
+
+                if (!string.IsNullOrEmpty(newContent))
+                    await match.Item2.SendMessageAsync(newContent);
+                // TODO: Add messageSent to messages that are to be edited when the original message (or anything linked to it) is edited
+            }
+
             return true;
         }
     }
