@@ -15,7 +15,7 @@
   </ItemGroup>
 
   <Target Name="CopyConfig" AfterTargets="AfterBuild">
-    <Copy SourceFiles="@(ConfigFiles)" DestinationFolder="$(OutDir)" />
+    <Copy SourceFiles="@(ConfigFiles)" DestinationFolder="$(OutDir)" ContinueOnError="true" />
   </Target>
 
 </Project>
