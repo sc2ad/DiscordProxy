@@ -112,21 +112,24 @@ namespace DiscordProxy.Config
     public class ProxyChannel
     {
         public ProxyEndpoint Source { get; set; }
-        public List<ProxyEndpoint> Destinations { get; set; }
-        [JsonIgnore]
-        public Dictionary<ulong, (ProxyEndpoint, SocketTextChannel)> AllChannels { get; private set; }
+        public ProxyEndpoint Destination { get; set; }
         [JsonIgnore]
         private List<LinkedMessage> Messages { get; } = new List<LinkedMessage>();
         [JsonIgnore]
         private ulong _lastProxiedID;
+        [JsonIgnore]
         private LinkedMessage _proxiedLinkedMessage;
-        public Dictionary<ulong, (ProxyEndpoint, SocketTextChannel)> GetAllChannels(DiscordSocketClient client) {
-            if (AllChannels == null)
-                AllChannels = Destinations.FindAll(pe => pe.Identifier.Id.HasValue)
-                    .Select(pe => new KeyValuePair<ulong, (ProxyEndpoint, SocketTextChannel)>(pe.Identifier.Id.Value, (pe, (SocketTextChannel)pe.Identifier.GetChannel(client))))
-                    .Append(new KeyValuePair<ulong, (ProxyEndpoint, SocketTextChannel)>(Source.Identifier.Id.Value, (Source, (SocketTextChannel)Source.Identifier.GetChannel(client))))
-                    .ToDictionary(pair => pair.Key, pair => pair.Value);
-            return AllChannels;
+        [JsonIgnore]
+        private Dictionary<ulong, (ProxyEndpoint, SocketTextChannel)> _allChannels;
+        private Dictionary<ulong, (ProxyEndpoint, SocketTextChannel)> GetAllChannels(DiscordSocketClient client)
+        {
+            if (_allChannels == null)
+                _allChannels = new Dictionary<ulong, (ProxyEndpoint, SocketTextChannel)>()
+                {
+                    { Source.Identifier.Id.Value, (Source, (SocketTextChannel)Source.Identifier.GetChannel(client)) },
+                    { Destination.Identifier.Id.Value, (Destination, (SocketTextChannel)Destination.Identifier.GetChannel(client)) }
+                };
+            return _allChannels;
         }
         public async Task<bool> OnEditMessage(SocketMessage message)
         {
@@ -204,7 +207,6 @@ namespace DiscordProxy.Config
 
                 if (!string.IsNullOrEmpty(newContent))
                     await match.Item2.SendMessageAsync(newContent);
-                // TODO: Add messageSent to messages that are to be edited when the original message (or anything linked to it) is edited
             }
 
             return true;
