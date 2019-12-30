@@ -122,7 +122,7 @@ namespace DiscordProxy.Config
         private LinkedMessage _proxiedLinkedMessage;
         [JsonIgnore]
         private Dictionary<ulong, (ProxyEndpoint, SocketTextChannel)> _allChannels;
-        private Dictionary<ulong, (ProxyEndpoint, SocketTextChannel)> GetAllChannels(DiscordSocketClient client)
+        internal Dictionary<ulong, (ProxyEndpoint, SocketTextChannel)> GetAllChannels(DiscordSocketClient client)
         {
             if (_allChannels == null)
                 _allChannels = new Dictionary<ulong, (ProxyEndpoint, SocketTextChannel)>()
