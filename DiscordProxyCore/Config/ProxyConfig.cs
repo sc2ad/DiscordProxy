@@ -113,6 +113,7 @@ namespace DiscordProxy.Config
     {
         public ProxyEndpoint Source { get; set; }
         public ProxyEndpoint Destination { get; set; }
+        public int MaxCachedMessagesCount { get; set; } = 1000;
         [JsonIgnore]
         private List<LinkedMessage> Messages { get; } = new List<LinkedMessage>();
         [JsonIgnore]
@@ -171,6 +172,8 @@ namespace DiscordProxy.Config
             }
             _lastProxiedID = message.Id;
             _proxiedLinkedMessage = new LinkedMessage(_lastProxiedID);
+            if (Messages.Count >= MaxCachedMessagesCount)
+                Messages.RemoveAt(0);
             Messages.Add(_proxiedLinkedMessage);
             return true;
         }
