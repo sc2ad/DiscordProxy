@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace DiscordProxy.Utils
@@ -40,13 +41,29 @@ namespace DiscordProxy.Utils
             }
             return newContent;
         }
-        public static Embed PrettyProxyMessage(SocketMessage message, ProxyEndpoint endpoint)
+        public static (Embed, List<string>) PrettyProxyMessage(SocketMessage message, ProxyEndpoint endpoint)
         {
             var embed = new EmbedBuilder {Description = message.Content};
+            var contents = new List<string>();
 
             if (!endpoint.AnonymizeUsers)
             {
                 embed = embed.WithAuthor(message.Author);
+            }
+
+            // Set embed image to first image in attachments and add other links to contents
+            var hasFirstImage = false;
+            foreach (var attachment in message.Attachments)
+            {
+                if (!hasFirstImage && attachment.Width.HasValue && attachment.Height.HasValue)
+                {
+                    embed = embed.WithImageUrl(attachment.Url);
+                    hasFirstImage = true;
+                }
+                else
+                {
+                    contents.Add(attachment.Url);
+                }
             }
 
             if (!endpoint.AnonymizeChannels)
@@ -68,7 +85,7 @@ namespace DiscordProxy.Utils
                 };
             }
 
-            return embed.WithCurrentTimestamp().Build();
+            return (embed.WithCurrentTimestamp().Build(), contents);
         }
 
         public static string ConvertMentionsToLegible(SocketGuild sourceGuild, string originalMessage)

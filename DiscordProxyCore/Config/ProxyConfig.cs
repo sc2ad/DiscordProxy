@@ -13,7 +13,6 @@ using System.Threading.Tasks;
 
 namespace DiscordProxy.Config
 {
-    [JsonObject]
     public class ProxyConfig
     {
         public List<ProxyChannel> Channels { get; set; }
@@ -176,14 +175,28 @@ namespace DiscordProxy.Config
         {
             if (match.Item1.PrettyPrint)
             {
-                var newEmbed = ProxyUtils.PrettyProxyMessage(message, match.Item1);
-                await match.Item2.SendMessageAsync(embed: newEmbed);
+                var (newEmbed, newContents) = ProxyUtils.PrettyProxyMessage(message, match.Item1);
+                if (newContents.Count > 0)
+                {
+                    await match.Item2.SendMessageAsync(string.Join('\n', newContents), embed: newEmbed);
+                }
+                else
+                {
+                    await match.Item2.SendMessageAsync(embed: newEmbed);
+                }
             }
             else
             {
                 string newContent = ProxyUtils.ProxyMessage(message, match.Item1);
-                // Discord max length is 300 characters
-                if (newContent.Length >= 300)
+
+                var links = message.Attachments.Select(a => a.Url).ToArray();
+                if (links.Length > 0)
+                {
+                    newContent += "\n" + string.Join('\n', links);
+                }
+
+                // Discord max length is 3000 characters
+                if (newContent.Length >= 3000)
                 {
                     // TODO: Add handling for messages that are too long after getting converted
                     return false;
