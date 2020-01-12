@@ -11,15 +11,15 @@ namespace DiscordProxyCore.Config
 {
     public class HeaderSocketMessage
     {
-        public ProxyEndpoint Endpoint { get; set; }
+        public ProxyEndpoint SourceEndpoint { get; set; }
         public SocketMessage Message { get; set; }
         public async Task<bool> ModifyMessage(SocketMessage newMessage)
         {
             if (!(Message is SocketUserMessage message)) return false;
 
-            if (Endpoint.PrettyPrint)
+            if (SourceEndpoint.PrettyPrint)
             {
-                var (newEmbed, newContents) = ProxyUtils.PrettyProxyMessage(newMessage, Endpoint);
+                var (newEmbed, newContents) = ProxyUtils.PrettyProxyMessage(newMessage, SourceEndpoint);
                 await message.ModifyAsync(msg =>
                 {
                     msg.Embed = newEmbed;
@@ -31,25 +31,21 @@ namespace DiscordProxyCore.Config
             }
             else
             {
-                string newContent = ProxyUtils.ProxyMessage(newMessage, Endpoint);
+                string newContent = ProxyUtils.ProxyMessage(newMessage, SourceEndpoint);
 
                 var links = newMessage.Attachments.Select(a => a.Url).ToArray();
                 if (links.Length > 0)
-                {
                     newContent += "\n" + string.Join('\n', links);
-                }
 
                 // Discord max length is 3000 characters
                 if (newContent.Length >= 3000)
                 {
-                    // TODO: Add handling for messages that are too long after getting converted
+                    // TODO: Add handling for messages that are too long after getting converted/edited
                     return false;
                 }
 
-                if (string.IsNullOrEmpty(newContent))
-                {
+                if (!string.IsNullOrEmpty(newContent))
                     await message.ModifyAsync(msg => msg.Content = newContent);
-                }
             }
             return true;
         }

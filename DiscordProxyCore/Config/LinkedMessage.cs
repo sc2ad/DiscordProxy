@@ -21,7 +21,7 @@ namespace DiscordProxyCore.Config
             Links.Add(new HeaderSocketMessage()
             {
                 Message = message,
-                Endpoint = endpoint
+                SourceEndpoint = endpoint
             });
         }
         public async Task<bool> OnMessageEdit(SocketMessage message)

@@ -89,6 +89,7 @@ namespace DiscordProxy.Config
     {
         public string Name { get; set; }
         public ulong? Id { get; set; }
+        private SocketTextChannel _channel;
         public async Task<IGuild> GetGuild(IDiscordClient client)
         {
             if (Id.HasValue)
@@ -101,12 +102,16 @@ namespace DiscordProxy.Config
             else
                 throw new InvalidOperationException("Name or ID must be set on ProxyIdentifier!");
         }
-        public SocketGuildChannel GetChannel(DiscordSocketClient client)
+        public SocketTextChannel GetChannel(DiscordSocketClient client)
         {
-            if (Id.HasValue)
-                return (SocketGuildChannel)client.GetChannel(Id.Value);
-            else
-                throw new InvalidOperationException("ID must be set on ProxyIdentifier for Getting Channels!");
+            if (_channel == null)
+            {
+                if (Id.HasValue)
+                    _channel = (SocketTextChannel)client.GetChannel(Id.Value);
+                else
+                    throw new InvalidOperationException("ID must be set on ProxyIdentifier for getting channels!");
+            }
+            return _channel;
         }
     }
     public class ProxyChannel
@@ -120,56 +125,73 @@ namespace DiscordProxy.Config
         private ulong _lastProxiedID;
         [JsonIgnore]
         private LinkedMessage _proxiedLinkedMessage;
-        [JsonIgnore]
-        private Dictionary<ulong, (ProxyEndpoint, SocketTextChannel)> _allChannels;
-        internal Dictionary<ulong, (ProxyEndpoint, SocketTextChannel)> GetAllChannels(DiscordSocketClient client)
-        {
-            if (_allChannels == null)
-                _allChannels = new Dictionary<ulong, (ProxyEndpoint, SocketTextChannel)>()
-                {
-                    { Source.Identifier.Id.Value, (Source, (SocketTextChannel)Source.Identifier.GetChannel(client)) },
-                    { Destination.Identifier.Id.Value, (Destination, (SocketTextChannel)Destination.Identifier.GetChannel(client)) }
-                };
-            return _allChannels;
-        }
         public async Task<bool> OnEditMessage(SocketMessage message)
         {
             foreach (var m in Messages)
             {
-                if (message.Id == m.SourceID)
-                {
-                    var success = await m.OnMessageEdit(message);
-                    if (!success)
+                if (m.SourceID == message.Id)
+                    if (!await m.OnMessageEdit(message))
                         return false;
-                }
             }
             return true;
         }
         /// <summary>
-        /// Forwards a message that has been received from Source to each Destination
+        /// Forwards a message that has been received from Source to Destination
         /// </summary>
         /// <param name="message"></param>
         public async Task<bool> OnMessage(DiscordSocketClient client, SocketMessage message)
         {
             if (message.Author.Id == client.CurrentUser.Id) {
+                // If we sent the message
                 if (_lastProxiedID != 0 && _proxiedLinkedMessage != null)
                 {
-                    // Assume that a message sent from this bot is only after a message has been sent from a user
-                    if (GetAllChannels(client).ContainsKey(message.Channel.Id))
-                    {
-                        _proxiedLinkedMessage.AddHeader(message, GetAllChannels(client)[message.Channel.Id].Item1);
-                    }
+                    // Assume that if a message is sent in the destination channel immediately after _lastProxiedID has been set
+                    // Is a message to link to the proxiedLinkedMessage
+                    if (Source.Identifier.Id == message.Channel.Id)
+                        // If this message was just received in the source, then use Destination config
+                        _proxiedLinkedMessage.AddHeader(message, Destination);
+                    else if (Destination.Identifier.Id == message.Channel.Id)
+                        // If this message was just received in the destination, then use Source config
+                        _proxiedLinkedMessage.AddHeader(message, Source);
                 }
                 return true;
             }
-            foreach (var k in GetAllChannels(client).Keys)
+            if (message.Channel is SocketDMChannel)
             {
-                if (k == message.Channel.Id)
-                    continue;
-                var success = await SendMessageToOthers(message, GetAllChannels(client)[k]);
-                if (!success)
+                // If the message was DM'd, send this message to the source/destination
+                // ONLY IF THEY HAVE THE FLAGS SET!
+                if (Source.ReceiveDMs && !await SendMessageTo(message, Source, Source.Identifier.GetChannel(client)))
+                    return false;
+                if (Destination.ReceiveDMs && !await SendMessageTo(message, Destination, Destination.Identifier.GetChannel(client)))
                     return false;
             }
+            else if (message.Channel is SocketGroupChannel)
+            {
+                // If the message was sent in a group chat, send this message to the source/destination
+                // ONLY IF THEY HAVE THE FLAGS SET!
+                if (Source.ReceiveGroupMessages && !await SendMessageTo(message, Source, Source.Identifier.GetChannel(client)))
+                    return false;
+                if (Destination.ReceiveGroupMessages && !await SendMessageTo(message, Destination, Destination.Identifier.GetChannel(client)))
+                    return false;
+            }
+            else if (message.Channel.Id == Source.Identifier.Id.Value)
+            {
+                // If the message was sent in the source, send a message to the Destination
+                if (!await SendMessageTo(message, Source, Destination.Identifier.GetChannel(client)))
+                    return false;
+            }
+            else if (message.Channel.Id == Destination.Identifier.Id.Value)
+            {
+                if (!await SendMessageTo(message, Destination, Source.Identifier.GetChannel(client)))
+                    return false;
+            }
+            else
+            {
+                // Message received from a channel that is not this one
+                // Return true because there is nothing to send
+                return true;
+            }
+            // Cache the message for edits iff the message is actually handled/sent
             _lastProxiedID = message.Id;
             _proxiedLinkedMessage = new LinkedMessage(_lastProxiedID);
             if (Messages.Count >= MaxCachedMessagesCount)
@@ -177,42 +199,34 @@ namespace DiscordProxy.Config
             Messages.Add(_proxiedLinkedMessage);
             return true;
         }
-        public async Task<bool> SendMessageToOthers(SocketMessage message, (ProxyEndpoint, SocketTextChannel) match)
+        public async Task<bool> SendMessageTo(SocketMessage message, ProxyEndpoint source, SocketTextChannel dest)
         {
-            if (match.Item1.PrettyPrint)
+            if (source.PrettyPrint)
             {
-                var (newEmbed, newContents) = ProxyUtils.PrettyProxyMessage(message, match.Item1);
+                var (newEmbed, newContents) = ProxyUtils.PrettyProxyMessage(message, source);
                 if (newContents.Count > 0)
-                {
-                    await match.Item2.SendMessageAsync(string.Join('\n', newContents), embed: newEmbed);
-                }
+                    return (await dest?.SendMessageAsync(string.Join('\n', newContents), embed: newEmbed)) != null;
                 else
-                {
-                    await match.Item2.SendMessageAsync(embed: newEmbed);
-                }
+                    return (await dest?.SendMessageAsync(embed: newEmbed)) != null;
             }
             else
             {
-                string newContent = ProxyUtils.ProxyMessage(message, match.Item1);
-
-                var links = message.Attachments.Select(a => a.Url).ToArray();
+                var newContent = ProxyUtils.ProxyMessage(message, source);
+                var links = message.Attachments?.Select(a => a.Url).ToArray();
                 if (links.Length > 0)
+                    newContent += '\n' + string.Join('\n', links);
+                do
                 {
-                    newContent += "\n" + string.Join('\n', links);
-                }
-
-                // Discord max length is 3000 characters
-                if (newContent.Length >= 3000)
-                {
-                    // TODO: Add handling for messages that are too long after getting converted
-                    return false;
-                }
-
-                if (!string.IsNullOrEmpty(newContent))
-                    await match.Item2.SendMessageAsync(newContent);
+                    // TODO: Add handling for messages that are too long after getting converted/edited
+                    // Sending multiple messages will cause big errors when editing them
+                    // Currently, the edits will simply not propagate
+                    var check = (await dest?.SendMessageAsync(newContent.Substring(0, Math.Min(3000, newContent.Length)))) != null;
+                    if (!check)
+                        return false;
+                    newContent = newContent.Substring(Math.Min(3000, newContent.Length - 1));
+                } while (newContent.Length >= 3000);
+                return true;
             }
-
-            return true;
         }
     }
 }

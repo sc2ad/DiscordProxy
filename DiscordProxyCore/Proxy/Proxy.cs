@@ -65,14 +65,9 @@ namespace DiscordProxy.Proxy
         {
             foreach (var c in _config.Channels)
             {
-                if (c.GetAllChannels(_client).ContainsKey(message.Channel.Id))
-                {
-                    var x = await c.OnMessage(_client, message);
-                    if (!x)
-                    {
-                        Console.WriteLine($"Failed to forward message with channel: {c} and message: {message.Content} with author: {message.Author}");
-                    }
-                }
+                var x = await c.OnMessage(_client, message);
+                if (!x)
+                    Console.WriteLine($"Failed to forward message with channel: {c} and message: {message.Content} with author: {message.Author}");
             }
         }
 
